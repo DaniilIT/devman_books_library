@@ -6,11 +6,17 @@ from pathlib import Path
 TUTULU_URL = 'https://tululu.org/txt.php?id='
 
 
+def check_for_redirect(response):
+    if response.history:
+        raise requests.HTTPError
+
+
 def load_book(book_id):
     url = ''.join([TUTULU_URL, str(book_id)])
 
     response = requests.get(url, verify=False)
     response.raise_for_status()
+    check_for_redirect(response)
 
     return response.text
 
@@ -27,7 +33,7 @@ def main():
                 file.write(book_text)
 
         except requests.exceptions.HTTPError:
-            print(f'книги с id={id} нет')
+            print(f'книги с id={book_id} нет')
             pass
 
 
