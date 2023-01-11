@@ -86,7 +86,9 @@ def download_book(book_id):
     filename = bookimage_url.split('/')[-1]
     bookimage_url = urljoin(TUTULU_URL, bookimage_url)
     print(bookimage_url)
-    download_image(bookimage_url, filename, folder='image/')
+    #download_image(bookimage_url, filename, folder='image/')
+    comments = list(map(lambda x: x.find('span', class_='black').text, soup.find_all('div', class_='texts')))
+    print(*comments)
 
     # if len(title_and_autor) > 1:
     #     autor = title_and_autor[-1].strip()  # Автор
