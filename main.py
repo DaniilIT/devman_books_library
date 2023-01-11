@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 import os
 from urllib.parse import urljoin, urlparse, unquote, urlsplit
+import argparse
 
 
 TUTULU_URL = 'https://tululu.org'
@@ -125,8 +126,8 @@ def download_book(book_id):
     download_txt(booktext_url, title, folder='books/')
 
 
-def main():
-    for book_id in range(1, 11):
+def main(start_id, end_id):
+    for book_id in range(start_id, end_id + 1):
         try:
             download_book(book_id)
         except requests.exceptions.HTTPError:
@@ -134,6 +135,28 @@ def main():
             pass
 
 
+def createParser():
+    parser = argparse.ArgumentParser(
+        description='Программа скачивает книги с сайта https://tululu.org'
+    )
+    parser.add_argument(
+        '--start_id',
+        help='Номер страницы, с которой начнется скачивание книг',
+        default=1,
+        type=int
+    )
+    parser.add_argument(
+        '--end_id',
+        help='Номер страницы, на которой закончится скачивание книг',
+        default=10,
+        type=int
+    )
+    return parser
+
+
 if __name__ == '__main__':
     requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-    main()
+
+    args = createParser().parse_args()
+
+    main(args.start_id, args.end_id)
