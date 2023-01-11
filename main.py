@@ -15,7 +15,7 @@ def check_for_redirect(response):
     Args:
         response (requests.models.Response): Запрос.
     """
-    print(response.history, response.url)
+    # print(response.history, response.url)
     if response.history:
         raise requests.HTTPError
 
@@ -37,7 +37,7 @@ def download_txt(url, filename, folder='books/'):
     books_dir = Path.cwd().joinpath(folder)
     Path(books_dir).mkdir(exist_ok=True)
 
-    filename = sanitize_filename(f'{filename}.txt')
+    filename = sanitize_filename(f"{filename}.txt")
     path_to_file = os.path.join(folder, filename)
 
     with open(path_to_file, 'w') as file:
@@ -45,30 +45,61 @@ def download_txt(url, filename, folder='books/'):
 
     return path_to_file
 
-def download_image(url, filename, folder='images/'):
+
+def download_image(url):
     """Функция для скачивания изображений.
     Args:
         url (str): Ссылка на изображение, которое хочется скачать.
-        filename (str): Имя файла, с которым сохранять.
-        folder (str): Папка, куда сохранять.
     Returns:
         str: Путь до файла, куда сохранено изображение.
     """
     response = requests.get(url, verify=False)
-
     response.raise_for_status()
-    check_for_redirect(response)
 
-    images_dir = Path.cwd().joinpath(folder)
+    images_dir = Path.cwd().joinpath('images/')
     Path(images_dir).mkdir(exist_ok=True)
 
-    filename = sanitize_filename(filename)
-    path_to_file = os.path.join(folder, filename)
+    filename = sanitize_filename(urlparse(url).path.split('/')[-1])
+    path_to_file = os.path.join('images/', filename)
 
     with open(path_to_file, 'wb') as file:
         file.write(response.content)
 
     return path_to_file
+
+
+def parse_book_page(soup):
+    """Функция парсит данные со страницы.
+    Args:
+        soup (bs4.BeautifulSoup): html-контент страницы
+    Returns:
+        book_info (dict): словарь с данными о книге:
+                        - 'title'         - название книги,
+                        - 'author'        - автор книги,
+                        - 'bookimage_url' - ссылка на изображение книги,
+                        - 'genres'        - список жанров книги,
+                        - 'comments'      - список комментариев книги.
+    """
+
+    book_info = dict()
+
+    title_and_author = soup.find('h1').text.split('::')
+    book_info['title'] = title_and_author[0].strip()
+    if (len(title_and_author) > 1) and (len(title_and_author[-1].strip()) > 0):
+        book_info['author'] = title_and_author[-1].strip()
+    else:
+        book_info['author'] = 'unknown'
+
+    bookimage_url = unquote(soup.find('div', class_='bookimage').find('img')['src'])
+    book_info['bookimage_url'] = urljoin(TUTULU_URL, bookimage_url)
+
+    genres = soup.find('span', class_='d_book').find_all('a')
+    book_info['genres'] = list(map(lambda x: x.text, genres))
+
+    comments = soup.find_all('div', class_='texts')
+    book_info['comments'] = list(map(lambda x: x.find('span', class_='black').text, comments))
+
+    return book_info
 
 
 def download_book(book_id):
@@ -79,34 +110,25 @@ def download_book(book_id):
     check_for_redirect(response)
 
     soup = BeautifulSoup(response.text, 'lxml')
-    title_and_autor = soup.find('h1').text.split('::')
-    title = f'{book_id}. {title_and_autor[0].strip()}' # Заголовок
-    print(title)
-    bookimage_url = unquote(soup.find('div', class_='bookimage').find('img')['src'])
-    filename = bookimage_url.split('/')[-1]
-    bookimage_url = urljoin(TUTULU_URL, bookimage_url)
-    print(bookimage_url)
-    #download_image(bookimage_url, filename, folder='image/')
-    # comments = list(map(lambda x: x.find('span', class_='black').text, soup.find_all('div', class_='texts')))
-    # print(comments)
-    genres = list(map(lambda x: x.text, soup.find('span', class_='d_book').find_all('a')))
-    print(*genres)
+    book_info = parse_book_page(soup)
 
-    # if len(title_and_autor) > 1:
-    #     autor = title_and_autor[-1].strip()  # Автор
+    download_image(book_info['bookimage_url'])
 
-    # oup.find('img', class_='attachment-post-image')['src']
-    # soup.find('div', class_='entry-content')
+    print(book_info['title'])
+    print(book_info['author'])
+    print(*book_info['genres'])
+    print(*book_info['comments'], sep='\n')
+    print()
 
-    txt_url = urljoin(TUTULU_URL, f'/txt.php?id={book_id}')
-    # download_txt(txt_url, title, folder='books/')
+    booktext_url = urljoin(TUTULU_URL, f"/txt.php?id={book_id}")
+    title = f"{book_id}. {book_info['title']}"
+    download_txt(booktext_url, title, folder='books/')
 
 
 def main():
     for book_id in range(1, 11):
         try:
             download_book(book_id)
-
         except requests.exceptions.HTTPError:
             print(f'книги с id={book_id} нет')
             pass
