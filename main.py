@@ -6,6 +6,7 @@ from pathlib import Path, PurePath
 import argparse
 from sys import stderr
 import logging
+from time import sleep
 
 
 TUTULU_URL = 'https://tululu.org'
@@ -30,7 +31,6 @@ def download_txt(url, book_id, book_title, folder='books/'):
     """
     params = {'id': book_id}
     response = requests.get(url, params=params, verify=False)
-
     response.raise_for_status()
     check_for_redirect(response)
 
@@ -39,7 +39,6 @@ def download_txt(url, book_id, book_title, folder='books/'):
 
     filename = sanitize_filename(f"{book_id}. {book_title}.txt")
     file_path = PurePath(folder, filename)
-
     with open(file_path, 'w') as file:
         file.write(response.text)
 
@@ -57,7 +56,6 @@ def download_image(url):
 
     filename = sanitize_filename(urlparse(url).path.split('/')[-1])
     file_path = PurePath('images/', filename)
-
     with open(file_path, 'wb') as file:
         file.write(response.content)
 
@@ -74,7 +72,6 @@ def parse_book_page(soup):
                     - 'genres'        - список жанров книги,
                     - 'comments'      - список комментариев книги.
     """
-
     title_and_author = soup.find('h1').text.split('::')
     genres_soup = soup.find('span', class_='d_book').find_all('a')
     comments_soup = soup.find_all('div', class_='texts')
@@ -91,8 +88,8 @@ def parse_book_page(soup):
 
 
 def create_parser():
-    """Функция производит синтаксический анализ командной строки"""
-
+    """Функция производит синтаксический анализ командной строки
+    """
     parser = argparse.ArgumentParser(
         description='Программа скачивает книги с сайта https://tululu.org'
     )
@@ -119,22 +116,29 @@ def main():
     args = create_parser().parse_args()
 
     for book_id in range(args.start_id, args.end_id + 1):
-        try:
-            page_url = urljoin(TUTULU_URL, f"/b{book_id}/")
-            response = requests.get(page_url)
-            response.raise_for_status()
-            check_for_redirect(response)
+        while True:
+            try:
+                page_url = urljoin(TUTULU_URL, f"/b{book_id}/")
+                response = requests.get(page_url)
+                response.raise_for_status()
+                check_for_redirect(response)
 
-            soup = BeautifulSoup(response.text, 'lxml')
-            book = parse_book_page(soup)
+                soup = BeautifulSoup(response.text, 'lxml')
+                book = parse_book_page(soup)
 
-            download_image(urljoin(page_url, book['image_url']))
+                download_image(urljoin(page_url, book['image_url']))
+                download_txt(urljoin(page_url, f"/txt.php"), book_id, book['title'])
+                break
 
-            download_txt(urljoin(page_url, f"/txt.php"), book_id, book['title'])
+            except requests.exceptions.HTTPError:
+                stderr.write(f"Книга №{book_id} отсутствует на сайте.\n")
+                logging.warning(f"Книга №{book_id} отсутствует на сайте.")
+                break
 
-        except requests.exceptions.HTTPError:
-            stderr.write(f"Книга №{book_id} отсутствует на сайте\n")
-            logging.warning(f"Книга №{book_id} отсутствует на сайте")
+            except requests.exceptions.ConnectionError:
+                stderr.write(f"Соединение с сервером на книге №{book_id} прервано.\n")
+                logging.warning(f"Соединение с сервером на книге №{book_id} прервано.")
+                sleep(5)
 
 
 if __name__ == '__main__':
