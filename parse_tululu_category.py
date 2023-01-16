@@ -3,11 +3,10 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlparse, unquote
 from pathlib import Path, PurePath
-import argparse
 from sys import stderr
 import logging
 from time import sleep
-
+import json
 
 TUTULU_URL = 'https://tululu.org'
 
@@ -87,25 +86,16 @@ def parse_book_page(soup):
     return book
 
 
-def create_parser():
-    """Функция производит синтаксический анализ командной строки
+def parse_category_page(soup):
+    """Функция парсит данные со страницы.
+    Args:
+        soup (bs4.BeautifulSoup): html-контент страницы
+    Returns:
+        book_srcs (list[str]): ссылки на книги в одной категории
     """
-    parser = argparse.ArgumentParser(
-        description='Программа скачивает книги с сайта https://tululu.org'
-    )
-    parser.add_argument(
-        '--start_id',
-        help='Номер страницы, с которой начнется скачивание книг',
-        default=1,
-        type=int
-    )
-    parser.add_argument(
-        '--end_id',
-        help='Номер страницы, на которой закончится скачивание книг',
-        default=10,
-        type=int
-    )
-    return parser
+    category_books = soup.find_all('table', class_='d_book')
+    book_srcs = list(map(lambda book: unquote(book.find('a')['href']), category_books))
+    return book_srcs
 
 
 def main():
@@ -113,21 +103,46 @@ def main():
         requests.packages.urllib3.exceptions.InsecureRequestWarning
     )
     logging.basicConfig(filename='app.log', filemode='w')
-    args = create_parser().parse_args()
 
-    for book_id in range(args.start_id, args.end_id + 1):
+    book_urls = []
+
+    for number_page in range(1, 5):
+        try:
+            category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
+            response = requests.get(category_page_url)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, 'lxml')
+
+            book_srcs = parse_category_page(soup)
+            book_urls.extend(list(map(lambda book_src: urljoin(category_page_url, book_src), book_srcs)))
+
+        except requests.exceptions.HTTPError:
+            stderr.write(f"отсутствует на сайте.\n")
+            logging.warning(f"отсутствует на сайте.")
+
+        except requests.exceptions.ConnectionError:
+            stderr.write(f"Соединение с сервером прервано.\n")
+            logging.warning(f"Соединение с сервером прервано.")
+            sleep(5)
+
+    books = []
+
+    for book_url in book_urls:
+        book_id = int(urlparse(book_url).path[2:-1])
         while True:
             try:
-                page_url = urljoin(TUTULU_URL, f"/b{book_id}/")
-                response = requests.get(page_url)
+                response = requests.get(book_url)
                 response.raise_for_status()
                 check_for_redirect(response)
 
                 soup = BeautifulSoup(response.text, 'lxml')
                 book = parse_book_page(soup)
 
-                download_image(urljoin(page_url, book['image_src']))
-                download_txt(urljoin(page_url, f"/txt.php"), book_id, book['title'])
+                download_txt(urljoin(book_url, f"/txt.php"), book_id, book['title'])
+                download_image(urljoin(book_url, book['image_src']))
+
+                books.append(book)
                 break
 
             except requests.exceptions.HTTPError:
@@ -140,6 +155,13 @@ def main():
                 logging.warning(f"Соединение с сервером на книге №{book_id} прервано.")
                 sleep(5)
 
+    with open("books.json", "w") as f:
+        json.dump(books, f, indent=2, ensure_ascii=False)
+
 
 if __name__ == '__main__':
     main()
+    with open("books.json", "r") as f:
+        books = json.load(f)
+
+    print(books)
