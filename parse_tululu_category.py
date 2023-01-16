@@ -71,16 +71,16 @@ def parse_book_page(soup):
                     - 'genres'        - список жанров книги,
                     - 'comments'      - список комментариев книги.
     """
-    title_and_author = soup.find('h1').text.split('::')
-    genres_soup = soup.find('span', class_='d_book').find_all('a')
-    comments_soup = soup.find_all('div', class_='texts')
+    title_and_author = soup.select_one('h1').text.split('::')
+    genres_soup = soup.select('span.d_book a')
+    comments_soup = soup.select('div.texts span.black')
 
     book = {
         'title': title_and_author[0].strip(),
         'author': title_and_author[-1].strip(),
-        'image_src': unquote(soup.find('div', class_='bookimage').find('img')['src']),
+        'image_src': unquote(soup.select_one('div.bookimage img')['src']),
         'genres': list(map(lambda x: x.text, genres_soup)),
-        'comments': list(map(lambda x: x.find('span', class_='black').text, comments_soup)),
+        'comments': list(map(lambda x: x.text, comments_soup)),
     }
 
     return book
@@ -93,8 +93,8 @@ def parse_category_page(soup):
     Returns:
         book_srcs (list[str]): ссылки на книги в одной категории
     """
-    category_books = soup.find_all('table', class_='d_book')
-    book_srcs = list(map(lambda book: unquote(book.find('a')['href']), category_books))
+    category_books = soup.select('table.d_book')
+    book_srcs = list(map(lambda book: unquote(book.select_one('td > a')['href']), category_books))
     return book_srcs
 
 
@@ -106,7 +106,7 @@ def main():
 
     book_urls = []
 
-    for number_page in range(1, 5):
+    for number_page in range(1, 2):
         try:
             category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
             response = requests.get(category_page_url)
@@ -161,7 +161,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    with open("books.json", "r") as f:
-        books = json.load(f)
-
-    print(books)
