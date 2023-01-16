@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlparse, unquote
 from pathlib import Path, PurePath
+import argparse
 from sys import stderr
 import logging
 from time import sleep
@@ -98,15 +99,37 @@ def parse_category_page(soup):
     return book_srcs
 
 
+def create_parser():
+    """Функция производит синтаксический анализ командной строки
+    """
+    parser = argparse.ArgumentParser(
+        description='Программа скачивает книги с сайта https://tululu.org'
+    )
+    parser.add_argument(
+        '--start_page',
+        help='Номер страницы, с которой начнется скачивание книг',
+        default=1,
+        type=int
+    )
+    parser.add_argument(
+        '--end_page',
+        help='Номер страницы, на которой закончится скачивание книг',
+        default=701,
+        type=int
+    )
+    return parser
+
+
 def main():
     requests.packages.urllib3.disable_warnings(
         requests.packages.urllib3.exceptions.InsecureRequestWarning
     )
     logging.basicConfig(filename='app.log', filemode='w')
+    args = create_parser().parse_args()
 
     book_urls = []
 
-    for number_page in range(1, 2):
+    for number_page in range(args.start_page, args.end_page):
         try:
             category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
             response = requests.get(category_page_url)
@@ -143,6 +166,7 @@ def main():
                 download_image(urljoin(book_url, book['image_src']))
 
                 books.append(book)
+                print(book_url)
                 break
 
             except requests.exceptions.HTTPError:
