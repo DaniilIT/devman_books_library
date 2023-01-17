@@ -127,12 +127,12 @@ def create_parser():
     )
     parser.add_argument(
         '--skip_imgs',
-        help='флаг не скачивать картинки',
+        help='Флаг не скачивать картинки',
         action='store_false'
     )
     parser.add_argument(
         '--skip_txt',
-        help='флаг не скачивать книги',
+        help='Флаг не скачивать книги',
         action='store_false'
     )
     parser.add_argument(
