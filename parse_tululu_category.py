@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlparse, unquote
-from pathlib import Path, PurePath
+from pathlib import Path
 import argparse
 from sys import stderr
 import logging
@@ -21,12 +21,13 @@ def check_for_redirect(response):
         raise requests.HTTPError
 
 
-def download_txt(url, book_id, book_title, folder='books/'):
+def download_txt(url, book_id, book_title, dest_folder, folder='books/'):
     """Функция для скачивания текстовых файлов.
     Args:
         url (str): Ссылка на текст, который хочется скачать.
         book_id (int): Номер книги на сайте.
         book_title (str): Название книги.
+        dest_folder (str): Путь к каталогу.
         folder (str): Папка, куда сохранять.
     """
     params = {'id': book_id}
@@ -34,28 +35,29 @@ def download_txt(url, book_id, book_title, folder='books/'):
     response.raise_for_status()
     check_for_redirect(response)
 
-    books_dir = Path.cwd().joinpath(folder)
+    books_dir = Path(dest_folder, folder)
     Path(books_dir).mkdir(exist_ok=True)
 
     filename = sanitize_filename(f"{book_id}. {book_title}.txt")
-    file_path = PurePath(folder, filename)
+    file_path = books_dir.joinpath(filename)
     with open(file_path, 'w') as file:
         file.write(response.text)
 
 
-def download_image(url):
+def download_image(url, dest_folder):
     """Функция для скачивания изображений.
     Args:
         url (str): Ссылка на изображение, которое хочется скачать.
+        dest_folder (str): Путь к каталогу.
     """
     response = requests.get(url, verify=False)
     response.raise_for_status()
 
-    images_dir = Path.cwd().joinpath('images/')
+    images_dir = Path(dest_folder, 'images/')
     Path(images_dir).mkdir(exist_ok=True)
 
     filename = sanitize_filename(urlparse(url).path.split('/')[-1])
-    file_path = PurePath('images/', filename)
+    file_path = images_dir.joinpath(filename)
     with open(file_path, 'wb') as file:
         file.write(response.content)
 
@@ -117,6 +119,28 @@ def create_parser():
         default=701,
         type=int
     )
+    parser.add_argument(
+        '--dest_folder',
+        help='Путь к каталогу с результатами парсинга',
+        default=Path.cwd(),
+        type=str
+    )
+    parser.add_argument(
+        '--skip_imgs',
+        help='флаг не скачивать картинки',
+        action='store_false'
+    )
+    parser.add_argument(
+        '--skip_txt',
+        help='флаг не скачивать книги',
+        action='store_false'
+    )
+    parser.add_argument(
+        '--json_path',
+        help='путь к *.json файлу с результатами',
+        default='',
+        type=str
+    )
     return parser
 
 
@@ -129,7 +153,7 @@ def main():
 
     book_urls = []
 
-    for number_page in range(args.start_page, args.end_page):
+    for number_page in range(args.start_page, args.end_page + 1):
         try:
             category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
             response = requests.get(category_page_url)
@@ -161,9 +185,10 @@ def main():
 
                 soup = BeautifulSoup(response.text, 'lxml')
                 book = parse_book_page(soup)
-
-                download_txt(urljoin(book_url, f"/txt.php"), book_id, book['title'])
-                download_image(urljoin(book_url, book['image_src']))
+                if args.skip_txt:
+                    download_txt(urljoin(book_url, f"/txt.php"), book_id, book['title'], args.dest_folder)
+                if args.skip_imgs:
+                    download_image(urljoin(book_url, book['image_src']), args.dest_folder)
 
                 books.append(book)
                 print(book_url)
@@ -179,7 +204,8 @@ def main():
                 logging.warning(f"Соединение с сервером на книге №{book_id} прервано.")
                 sleep(5)
 
-    with open("books.json", "w") as f:
+    json_path = Path(args.dest_folder, args.json_path, "books.json")
+    with open(json_path, "w") as f:
         json.dump(books, f, indent=2, ensure_ascii=False)
 
 
