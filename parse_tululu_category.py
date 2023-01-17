@@ -129,12 +129,12 @@ def create_parser():
     parser.add_argument(
         '--skip_imgs',
         help='Флаг не скачивать картинки',
-        action='store_false'
+        action='store_true'
     )
     parser.add_argument(
         '--skip_txt',
         help='Флаг не скачивать книги',
-        action='store_false'
+        action='store_true'
     )
     parser.add_argument(
         '--json_path',
@@ -154,10 +154,10 @@ def main():
 
     book_urls = []
 
-    for number_page in range(args.start_page, args.end_page + 1):
+    for page_number in range(args.start_page, args.end_page + 1):
         while True:
             try:
-                category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
+                category_page_url = urljoin(TUTULU_URL, f"/l55/{page_number}/")
                 response = requests.get(category_page_url)
                 response.raise_for_status()
                 check_for_redirect(response)
@@ -169,13 +169,13 @@ def main():
                 break
 
             except requests.exceptions.HTTPError:
-                stderr.write(f"страница №{number_page} отсутствует на сайте.\n")
-                logging.warning(f"страница №{number_page} отсутствует на сайте.")
+                stderr.write(f"страница №{page_number} отсутствует на сайте.\n")
+                logging.warning(f"страница №{page_number} отсутствует на сайте.")
                 break
 
             except requests.exceptions.ConnectionError:
-                stderr.write(f"Соединение с сервером на странице №{number_page} прервано.\n")
-                logging.warning(f"Соединение с сервером на странице №{number_page} прервано.")
+                stderr.write(f"Соединение с сервером на странице №{page_number} прервано.\n")
+                logging.warning(f"Соединение с сервером на странице №{page_number} прервано.")
                 sleep(5)
 
     books = []
@@ -190,9 +190,9 @@ def main():
 
                 soup = BeautifulSoup(response.text, 'lxml')
                 book = parse_book_page(soup)
-                if args.skip_txt:
+                if not args.skip_txt:
                     download_txt(urljoin(book_url, f"/txt.php"), book_id, book['title'], args.dest_folder)
-                if args.skip_imgs:
+                if not args.skip_imgs:
                     download_image(urljoin(book_url, book['image_src']), args.dest_folder)
 
                 books.append(book)
