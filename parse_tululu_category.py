@@ -8,6 +8,7 @@ from sys import stderr
 import logging
 from time import sleep
 import json
+from tqdm import tqdm
 
 TUTULU_URL = 'https://tululu.org'
 
@@ -154,28 +155,32 @@ def main():
     book_urls = []
 
     for number_page in range(args.start_page, args.end_page + 1):
-        try:
-            category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
-            response = requests.get(category_page_url)
-            response.raise_for_status()
+        while True:
+            try:
+                category_page_url = urljoin(TUTULU_URL, f"/l55/{number_page}/")
+                response = requests.get(category_page_url)
+                response.raise_for_status()
+                check_for_redirect(response)
 
-            soup = BeautifulSoup(response.text, 'lxml')
+                soup = BeautifulSoup(response.text, 'lxml')
 
-            book_srcs = parse_category_page(soup)
-            book_urls.extend(list(map(lambda book_src: urljoin(category_page_url, book_src), book_srcs)))
+                book_srcs = parse_category_page(soup)
+                book_urls.extend(list(map(lambda book_src: urljoin(category_page_url, book_src), book_srcs)))
+                break
 
-        except requests.exceptions.HTTPError:
-            stderr.write(f"отсутствует на сайте.\n")
-            logging.warning(f"отсутствует на сайте.")
+            except requests.exceptions.HTTPError:
+                stderr.write(f"страница №{number_page} отсутствует на сайте.\n")
+                logging.warning(f"страница №{number_page} отсутствует на сайте.")
+                break
 
-        except requests.exceptions.ConnectionError:
-            stderr.write(f"Соединение с сервером прервано.\n")
-            logging.warning(f"Соединение с сервером прервано.")
-            sleep(5)
+            except requests.exceptions.ConnectionError:
+                stderr.write(f"Соединение с сервером на странице №{number_page} прервано.\n")
+                logging.warning(f"Соединение с сервером на странице №{number_page} прервано.")
+                sleep(5)
 
     books = []
 
-    for book_url in book_urls:
+    for book_url in tqdm(book_urls):
         book_id = int(urlparse(book_url).path[2:-1])
         while True:
             try:
@@ -191,7 +196,6 @@ def main():
                     download_image(urljoin(book_url, book['image_src']), args.dest_folder)
 
                 books.append(book)
-                print(book_url)
                 break
 
             except requests.exceptions.HTTPError:
@@ -205,8 +209,8 @@ def main():
                 sleep(5)
 
     json_path = Path(args.dest_folder, args.json_path, "books.json")
-    with open(json_path, "w") as f:
-        json.dump(books, f, indent=2, ensure_ascii=False)
+    with open(json_path, "w") as json_file:
+        json.dump(books, json_file, indent=2, ensure_ascii=False)
 
 
 if __name__ == '__main__':
