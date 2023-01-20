@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlparse, unquote
-from pathlib import Path, PurePath
+from pathlib import Path
 import argparse
 from sys import stderr
 import logging
@@ -30,8 +30,6 @@ def download_txt(url, book_id, book_title, dest_folder, folder='books/'):
         book_title (str): Название книги.
         dest_folder (str): Путь к каталогу.
         folder (str): Папка, куда сохранять.
-    Returns:
-        file_path (str): Путь до файла, куда сохранён текст.
     """
     params = {'id': book_id}
     response = requests.get(url, params=params, verify=False)
@@ -46,16 +44,12 @@ def download_txt(url, book_id, book_title, dest_folder, folder='books/'):
     with open(file_path, 'w') as file:
         file.write(response.text)
 
-    return str(PurePath(*file_path.parts[-3:]))
-
 
 def download_image(url, dest_folder):
     """Функция для скачивания изображений.
     Args:
         url (str): Ссылка на изображение, которое хочется скачать.
         dest_folder (str): Путь к каталогу.
-    Returns:
-        file_path (str): Путь до файла, куда сохранёна обложка.
     """
     response = requests.get(url, verify=False)
     response.raise_for_status()
@@ -67,8 +61,6 @@ def download_image(url, dest_folder):
     file_path = images_dir.joinpath(filename)
     with open(file_path, 'wb') as file:
         file.write(response.content)
-
-    return str(PurePath(*file_path.parts[-3:]))
 
 
 def parse_book_page(soup):
@@ -199,15 +191,15 @@ def main():
                 soup = BeautifulSoup(response.text, 'lxml')
                 book = parse_book_page(soup)
                 if not args.skip_txt:
-                    book['book_url'] = download_txt(urljoin(book_url, f"/txt.php"), book_id, book['title'], args.dest_folder)
+                    download_txt(urljoin(book_url, f"/txt.php"), book_id, book['title'], args.dest_folder)
                 if not args.skip_imgs:
-                    book['image_url'] = download_image(urljoin(book_url, book['image_src']), args.dest_folder)
+                    download_image(urljoin(book_url, book['image_src']), args.dest_folder)
 
                 books.append(book)
                 break
 
             except requests.exceptions.HTTPError:
-                # stderr.write(f"Книга №{book_id} отсутствует на сайте.\n")
+                stderr.write(f"Книга №{book_id} отсутствует на сайте.\n")
                 logging.warning(f"Книга №{book_id} отсутствует на сайте.")
                 break
 
