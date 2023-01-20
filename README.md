@@ -9,6 +9,7 @@
 
 ![books.json](json.png "books.json")
 
+
 ## Как установить
 
 Для этого проекта требуются следующие пакеты Python:
@@ -25,7 +26,9 @@
 pip install -r requirements.txt
 ```
 
+
 ## Запуск с аргументами
+
 Для запуска программы рекомендуется указать аргументы *start_page* и *end_page*, например:
 
 ```Python
@@ -39,6 +42,7 @@ python parse_tululu_category.py --start_page 1 --end_page 10 --skip_imgs
 **--skip_imgs** - флаг не скачивать картинки, по умолчанию false, \
 **--skip_txt** - флаг не скачивать книги, по умолчанию false, \
 **--json_path** - путь к *.json файлу с результатами, по умолчанию dest_folder.
+
 
 ## Цель проекта
 
